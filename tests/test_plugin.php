@@ -1,0 +1,149 @@
+<?php
+// Testy pluginu Skautské akce: php tests/test_plugin.php
+require __DIR__ . '/wp_stubs.php';
+require __DIR__ . '/../skautske-akce.php';
+
+$chyb = 0; $testu = 0;
+function ok($podminka, $nazev) {
+    global $chyb, $testu;
+    $testu++;
+    if (!$podminka) { $chyb++; echo "SELHALO: $nazev\n"; }
+}
+function je($skutecne, $ocekavane, $nazev) {
+    ok($skutecne === $ocekavane, $nazev . ' (čekáno ' . var_export($ocekavane, true) . ', je ' . var_export($skutecne, true) . ')');
+}
+
+// ---- Formátování ----
+je(ska_format_datum('2026-11-14'), 'so 14. 11. 2026', 'jednodenní datum');
+je(ska_format_datum('2026-11-13', '2026-11-15'), 'pá 13. 11. – ne 15. 11. 2026', 'rozmezí v jednom roce');
+je(ska_format_datum('2026-12-30', '2027-01-02'), 'st 30. 12. 2026 – so 2. 1. 2027', 'rozmezí přes Nový rok');
+je(ska_format_cas_akce(['datum_od' => '2026-11-14', 'cas_od' => '09:00', 'cas_do' => '12:30']), '9:00–12:30', 'čas od–do');
+je(ska_format_cas_akce(['datum_od' => '2026-11-14', 'cas_od' => '09:00', 'cas_do' => '']), '9:00', 'jen začátek');
+je(ska_format_cas_akce(['datum_od' => '2026-11-14', 'cas_od' => '', 'cas_do' => '17:00']), 'do 17:00', 'jen konec');
+je(ska_format_cas_akce(['datum_od' => '2026-11-14', 'cas_od' => '', 'cas_do' => '']), '', 'bez času');
+je(ska_format_cas_akce(['datum_od' => '2026-11-13', 'datum_do' => '2026-11-15', 'cas_od' => '18:00', 'cas_do' => '12:00']), 'pá 18:00 – ne 12:00', 'čas vícedenní akce');
+
+// ---- Validace ----
+[$a, $ch] = ska_validovat(['datum_od' => '2026-11-20', 'datum_do' => '', 'cas_od' => '9:00', 'cas_do' => '', 'popis' => ' Výprava ', 'url' => 'skautchlumec.cz/vyprava']);
+je($ch, [], 'platná akce bez chyb');
+je($a['cas_od'], '09:00', 'čas se normalizuje');
+je($a['popis'], 'Výprava', 'popis se ořízne');
+je($a['url'], 'https://skautchlumec.cz/vyprava', 'URL bez schématu dostane https://');
+[$a, $ch] = ska_validovat(['datum_od' => '2026-11-20', 'datum_do' => '2026-11-20', 'popis' => 'x']);
+je($a['datum_do'], '', 'stejné datum konce = jednodenní akce');
+[, $ch] = ska_validovat(['datum_od' => '2026-11-20', 'datum_do' => '2026-11-19', 'popis' => 'x']);
+ok(count($ch) === 1, 'konec před začátkem je chyba');
+[, $ch] = ska_validovat(['datum_od' => '2026-02-30', 'popis' => '']);
+ok(count($ch) === 2, 'neplatné datum a prázdný popis');
+[, $ch] = ska_validovat(['datum_od' => '2026-11-20', 'cas_od' => '14:00', 'cas_do' => '10:00', 'popis' => 'x']);
+ok(count($ch) === 1, 'jednodenní: konec dřív než začátek je chyba');
+[, $ch] = ska_validovat(['datum_od' => '2026-11-20', 'datum_do' => '2026-11-21', 'cas_od' => '14:00', 'cas_do' => '10:00', 'popis' => 'x']);
+je($ch, [], 'vícedenní: konec ve dřívější hodinu je v pořádku');
+[, $ch] = ska_validovat(['datum_od' => '2026-11-20', 'popis' => 'x', 'url' => 'javascript:alert(1)']);
+ok(count($ch) === 1, 'javascript: URL se odmítne');
+
+// ---- Čas brigády z volného textu ----
+je(ska_rozparsovat_cas_brigady('9:00'), ['cas_od' => '09:00', 'cas_do' => '', 'cas_text' => ''], 'brigáda: jen začátek');
+je(ska_rozparsovat_cas_brigady('9:00', '4'), ['cas_od' => '09:00', 'cas_do' => '13:00', 'cas_text' => ''], 'brigáda: konec z délky');
+je(ska_rozparsovat_cas_brigady('8.30', '2,5 h'), ['cas_od' => '08:30', 'cas_do' => '11:00', 'cas_text' => ''], 'brigáda: tečka a desetinná čárka');
+je(ska_rozparsovat_cas_brigady('od 9:00 do 13:30 h'), ['cas_od' => '09:00', 'cas_do' => '13:30', 'cas_text' => ''], 'brigáda: od–do');
+je(ska_rozparsovat_cas_brigady('dopoledne'), ['cas_od' => '', 'cas_do' => '', 'cas_text' => 'dopoledne'], 'brigáda: čas jen textem');
+je(ska_rozparsovat_cas_brigady('sraz 9:00 u klubovny')['cas_text'], 'sraz 9:00 u klubovny', 'brigáda: doplňující text se zachová');
+je(ska_rozparsovat_cas_brigady('22:00', '5')['cas_do'], '', 'brigáda: přes půlnoc se konec nedopočítá');
+
+// ---- Data: vlastní akce + brigády ----
+$GLOBALS['opts'][SKA_OPT_AKCE] = [
+    1 => ['id' => 1, 'datum_od' => '2026-11-10', 'datum_do' => '',           'cas_od' => '',      'cas_do' => '', 'popis' => 'Včerejší schůzka', 'url' => ''],
+    2 => ['id' => 2, 'datum_od' => '2026-11-11', 'datum_do' => '',           'cas_od' => '17:00', 'cas_do' => '', 'popis' => 'Dnešní schůzka',   'url' => ''],
+    3 => ['id' => 3, 'datum_od' => '2026-11-09', 'datum_do' => '2026-11-12', 'cas_od' => '',      'cas_do' => '', 'popis' => 'Probíhající tábor', 'url' => 'https://example.org/tabor'],
+    4 => ['id' => 4, 'datum_od' => '2026-12-05', 'datum_do' => '',           'cas_od' => '',      'cas_do' => '', 'popis' => 'Mikuláš <b>x</b>', 'url' => ''],
+    5 => ['id' => 5, 'datum_od' => '2026-11-01', 'datum_do' => '2026-11-10', 'cas_od' => '',      'cas_do' => '', 'popis' => 'Skončená výprava', 'url' => ''],
+    6 => 'rozbitý záznam',
+];
+atrapa_post(100, 'brigada', 'Úklid klubovny', ['datum_brigady' => '2026-11-21', 'cas_brigady' => '9:00', 'delka_brigady' => '3', 'misto_konani' => 'Klubovna', 'datum_predbezne' => '0']);
+atrapa_post(101, 'brigada', 'Stará brigáda',  ['datum_brigady' => '2026-11-01', 'cas_brigady' => '9:00']);
+atrapa_post(102, 'brigada', 'Dnešní brigáda', ['datum_brigady' => '2026-11-11', 'cas_brigady' => '', 'datum_predbezne' => '1']);
+atrapa_post(103, 'brigada', 'Koncept',        ['datum_brigady' => '2026-11-30'], 'draft');
+atrapa_post(104, 'brigada', 'Bez data',       []);
+atrapa_post(105, 'brigada', 'Český zápis',    ['datum_brigady' => '5. 12. 2026']);
+atrapa_post(200, 'page', 'Brigády', [], 'publish', 'text [sb_prehled_brigad] text', 'brigady');
+
+$akce = ska_akce_k_zobrazeni();
+je(array_column($akce, 'popis'), [
+    'Probíhající tábor',
+    'Dnešní schůzka',
+    'Brigáda: Dnešní brigáda – termín je předběžný',
+    'Brigáda: Úklid klubovny (Klubovna)',
+    'Brigáda: Český zápis',
+    'Mikuláš <b>x</b>',
+], 'přehled: jen budoucí/probíhající, seřazené, s brigádami');
+$uklid = $akce[3];
+je([$uklid['cas_od'], $uklid['cas_do'], $uklid['url']], ['09:00', '12:00', 'https://skautchlumec.cz/brigady/'], 'brigáda: čas a odkaz na stránku s brigádami');
+
+je(count(ska_akce_k_zobrazeni(false)), 3, 'bez brigád');
+$GLOBALS['opts'][SKA_OPT_NASTAVENI] = ['brigady' => 0];
+je(count(ska_akce_k_zobrazeni()), 3, 'brigády vypnuté v nastavení');
+$GLOBALS['opts'][SKA_OPT_NASTAVENI] = ['brigady' => 1, 'brigady_url' => 'https://jinde.cz/b', 'brigady_predpona' => 'Pracovní akce'];
+$b = array_column(ska_brigady_jako_akce(), null, 'id')['brigada-102'];
+je([$b['popis'], $b['url']], ['Pracovní akce: Dnešní brigáda – termín je předběžný', 'https://jinde.cz/b'], 'vlastní označení a odkaz brigád');
+unset($GLOBALS['opts'][SKA_OPT_NASTAVENI]);
+
+// Plugin brigád neexistuje / nemá žádná data → přehled funguje dál
+$zaloha = $GLOBALS['posts'];
+$GLOBALS['posts'] = [];
+$GLOBALS['transients'] = [];
+je(count(ska_akce_k_zobrazeni()), 3, 'bez brigád v databázi');
+$GLOBALS['posts'] = $zaloha;
+$GLOBALS['transients'] = []; // na webu adresu stránky vymaže uložení stránky (save_post_page)
+
+// ---- Shortcode ----
+$html = ska_shortcode([]);
+ok(strpos($html, 'Mikuláš &lt;b&gt;x&lt;/b&gt;') !== false, 'popis je escapovaný');
+ok(strpos($html, 'Včerejší schůzka') === false && strpos($html, 'Skončená výprava') === false, 'proběhlé akce se nezobrazují');
+ok(strpos($html, 'pá 13. 11.') === false && strpos($html, 'po 9. 11. – čt 12. 11. 2026') !== false, 'vícedenní akce s rozmezím');
+ok(strpos($html, 'target="_blank" rel="noopener">Více informací') !== false, 'externí odkaz v novém okně');
+ok(strpos($html, 'href="https://skautchlumec.cz/brigady/">Přihlásit se') !== false, 'brigáda odkazuje na přihlášení');
+ok(substr_count($html, '<style>') === 1, 'CSS jen jednou');
+$html = ska_shortcode(['limit' => '2', 'brigady' => 'ne']);
+je(substr_count($html, '<tr class='), 2, 'limit a brigady="ne"');
+$GLOBALS['opts'][SKA_OPT_AKCE] = [];
+$GLOBALS['posts'] = [];
+ok(strpos(ska_shortcode([]), 'Momentálně nejsou naplánované žádné akce.') !== false, 'prázdný přehled');
+
+// ---- Administrace ----
+function odeslat($akce, $post) {
+    $_POST = $post + ['_wpnonce' => 'tok-' . $akce['nonce']];
+    $GLOBALS['presmerovano'] = null;
+    try { $akce['fn'](); } catch (Presmerovano $e) {}
+    return $GLOBALS['presmerovano'];
+}
+$ulozit = ['fn' => 'ska_akce_ulozit', 'nonce' => 'ska_ulozit'];
+$smazat = ['fn' => 'ska_akce_smazat', 'nonce' => 'ska_smazat'];
+$url = odeslat($ulozit, ['id' => 0, 'datum_od' => '2026-11-28', 'datum_do' => '2026-11-29', 'cas_od' => '8:00', 'cas_do' => '16:00', 'popis' => 'Výprava', 'url' => '']);
+ok(strpos($url, 'zprava=ulozeno') !== false, 'uložení nové akce');
+odeslat($ulozit, ['id' => 0, 'datum_od' => '2026-10-01', 'popis' => 'Stará']);
+je(array_keys(ska_akce_vse()), [1, 2], 'nová akce dostane další ID');
+odeslat($ulozit, ['id' => 1, 'datum_od' => '2026-11-28', 'popis' => 'Výprava upravená']);
+je(ska_akce_vse()[1]['popis'], 'Výprava upravená', 'úprava akce');
+$url = odeslat($ulozit, ['id' => 1, 'datum_od' => '', 'popis' => '']);
+ok(strpos($url, 'upravit=1') !== false && count(get_transient('ska_form_1')['chyby']) === 2, 'chybný formulář se vrátí k opravě');
+je(ska_akce_vse()[1]['popis'], 'Výprava upravená', 'chybný formulář nic nepřepíše');
+
+$_GET = ['page' => 'skautske-akce', 'upravit' => 1];
+ob_start(); ska_admin_stranka(); $admin = ob_get_clean();
+ok(strpos($admin, 'Datum konce akce') === false && strpos($admin, 'Zadejte platné datum') !== false, 'admin: zobrazí chyby formuláře');
+ok(strpos($admin, 'Proběhlé akce (1)') !== false, 'admin: proběhlé akce');
+ok(strpos($admin, 'Brigád v databázi: 0') !== false, 'admin: diagnostika brigád');
+$_GET = [];
+
+odeslat($smazat, ['probehle' => 1]);
+je(array_keys(ska_akce_vse()), [1], 'smazání proběhlých');
+odeslat($smazat, ['id' => 1]);
+je(ska_akce_vse(), [], 'smazání akce');
+$GLOBALS['muze'] = false;
+try { odeslat($ulozit, ['id' => 0, 'datum_od' => '2026-11-28', 'popis' => 'x']); ok(false, 'bez oprávnění'); }
+catch (Exception $e) { ok(strpos($e->getMessage(), 'wp_die') === 0 && ska_akce_vse() === [], 'bez oprávnění nelze ukládat'); }
+$GLOBALS['muze'] = true;
+
+echo $chyb ? "\n$chyb z $testu testů SELHALO\n" : "OK – všech $testu testů prošlo\n";
+exit($chyb ? 1 : 0);

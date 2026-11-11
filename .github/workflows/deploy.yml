@@ -1,0 +1,25 @@
+name: Deploy na server
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Kontrola syntaxe PHP a testy (před nasazením)
+        run: |
+          command -v php >/dev/null || { sudo apt-get update -qq && sudo apt-get install -y -qq php-cli; }
+          find . -name '*.php' -not -path './.git/*' -print0 | xargs -0 -n1 php -l
+          php tests/test_plugin.php
+
+      - name: Zavolat deploy webhook
+        # Server za Cloudflare občas odpoví 522 (timeout spojení s originem),
+        # typicky jen při prvním pokusu — webhook je idempotentní, tak to zkusit znovu.
+        run: |
+          curl -fsS --retry 3 --retry-delay 20 --retry-all-errors -H "X-Deploy-Token: ${{ secrets.DEPLOY_SECRET }}" -H "X-Deploy-Sha: ${{ github.sha }}" "https://skautchlumec.cz/wp-content/plugins/skautske-akce/deploy-webhook.php"

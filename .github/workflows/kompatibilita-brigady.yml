@@ -1,0 +1,26 @@
+name: Kompatibilita se Skautskými brigádami
+
+# Hlídá, že plugin Skautské brigády stále ukládá brigády tak, jak je tento
+# plugin čte. Když se po aktualizaci brigád něco změní, běh selže a GitHub
+# pošle e-mail o selhání workflow.
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+  schedule:
+    - cron: '17 5 * * *'   # denně ráno
+
+jobs:
+  kontrola:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Stáhnout aktuální plugin Skautské brigády
+        run: curl -fsS --retry 3 -o /tmp/skautske-brigady.php https://raw.githubusercontent.com/outly-jan/skautske-brigady/main/skautske-brigady.php
+
+      - name: Ověřit klíče, ze kterých se brigády načítají
+        run: |
+          command -v php >/dev/null || { sudo apt-get update -qq && sudo apt-get install -y -qq php-cli; }
+          php tests/kontrola_brigad.php /tmp/skautske-brigady.php
+          php tests/test_plugin.php
