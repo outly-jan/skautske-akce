@@ -23,6 +23,12 @@ Ve wp-adminu menu **Plánované akce** (jen administrátoři, capability `manage
 - proběhlé akce (na webu už nejsou; lze je smazat jedním tlačítkem),
 - **Napojení na Skautské brigády**: zapnutí/vypnutí brigád v přehledu, označení brigád (výchozí „Brigáda“), vlastní odkaz u brigád a diagnostika (kolik brigád plugin našel, zda je plugin brigád aktivní).
 
+## Cache stránek
+
+Stránku s přehledem může mít v cache hosting, Cloudflare nebo cache plugin – pak by návštěvníci viděli zastaralý přehled (proběhlé akce, chybějící nové akce a brigády). Proto se přehled vykreslí do stránky a **po načtení ho prohlížeč stáhne znovu** z REST API `/wp-json/skautske-akce/v1/prehled` (odpověď s `Cache-Control: no-store`). Bez JavaScriptu zůstane přehled vykreslený ve stránce.
+
+Po první instalaci této verze je potřeba **jednou vyčistit cache** stránky, aby se do ní dostal nový skript; dál už se přehled aktualizuje sám.
+
 ## Shortcode
 
 | Zápis | Význam |
