@@ -23,6 +23,16 @@ je(ska_format_cas_akce(['datum_od' => '2026-11-14', 'cas_od' => '', 'cas_do' => 
 je(ska_format_cas_akce(['datum_od' => '2026-11-14', 'cas_od' => '', 'cas_do' => '']), '', 'bez času');
 je(ska_format_cas_akce(['datum_od' => '2026-11-13', 'datum_do' => '2026-11-15', 'cas_od' => '18:00', 'cas_do' => '12:00']), 'pá 18:00 – ne 12:00', 'čas vícedenní akce');
 
+// ---- Odkazy v popisu ----
+je(ska_popis_html('Základna (Herálec): https://mapy.com/s/bejulodetu) – čas'),
+   'Základna (Herálec): <a href="https://mapy.com/s/bejulodetu" target="_blank" rel="noopener" class="ska-url">mapa</a>) – čas', 'odkaz na mapy.com → „mapa“, závorka zůstane mimo');
+je(ska_popis_html('Viz www.skaut.cz/akce, nebo https://cs.wikipedia.org/wiki/Skaut_(hnutí).'),
+   'Viz <a href="https://www.skaut.cz/akce" target="_blank" rel="noopener" class="ska-url">www.skaut.cz/akce</a>, nebo <a href="https://cs.wikipedia.org/wiki/Skaut_(hnutí)" target="_blank" rel="noopener" class="ska-url">cs.wikipedia.org/wiki/Skaut_(hnutí)</a>.', 'www odkaz, vyvážená závorka a tečka na konci');
+je(ska_popis_html('<b>x</b> & https://example.org/?a=1&b=2'),
+   '&lt;b&gt;x&lt;/b&gt; &amp; <a href="https://example.org/?a=1&amp;b=2" target="_blank" rel="noopener" class="ska-url">example.org/?a=1&amp;b=2</a>', 'escapování textu i odkazu');
+je(ska_popis_html("Řádek 1\nhttps://maps.app.goo.gl/abc"), "Řádek 1<br />\n<a href=\"https://maps.app.goo.gl/abc\" target=\"_blank\" rel=\"noopener\" class=\"ska-url\">mapa</a>", 'zalomení řádku a Google mapy');
+je(ska_popis_html('javascript:alert(1)'), 'javascript:alert(1)', 'jiné schéma se neodkazuje');
+
 // ---- Validace ----
 [$a, $ch] = ska_validovat(['datum_od' => '2026-11-20', 'datum_do' => '', 'cas_od' => '9:00', 'cas_do' => '', 'popis' => ' Výprava ', 'url' => 'skautchlumec.cz/vyprava']);
 je($ch, [], 'platná akce bez chyb');

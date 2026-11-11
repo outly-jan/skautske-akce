@@ -104,6 +104,39 @@ function ska_format_cas_akce($akce) {
     return $od !== '' ? $od : 'do ' . $do;
 }
 
+// Popis jako HTML: escapovaný text, zalomení řádků a rozklikávací odkazy
+// (http(s)://… i www.…). Odkazy na mapy se zkrátí na „mapa“.
+function ska_popis_html($text) {
+    $text = (string) $text;
+    $html = '';
+    $pos  = 0;
+    if (preg_match_all('~(?:https?://|www\.)[^\s<>"]+~iu', $text, $m, PREG_OFFSET_CAPTURE)) {
+        foreach ($m[0] as [$url, $start]) {
+            // interpunkce za odkazem (tečka, čárka, uzavírací závorka textu) k odkazu nepatří
+            while ($url !== '') {
+                $posl = substr($url, -1);
+                if (strpos('.,;:!?\'', $posl) !== false
+                    || ($posl === ')' && substr_count($url, '(') < substr_count($url, ')'))) {
+                    $url = substr($url, 0, -1);
+                } else {
+                    break;
+                }
+            }
+            if ($url === '') continue;
+            $href = preg_match('~^https?://~i', $url) ? $url : 'https://' . $url;
+            $host = strtolower((string) parse_url($href, PHP_URL_HOST));
+            $mapa = preg_match('~(^|\.)(mapy\.(cz|com)|maps\.app\.goo\.gl)$~', $host)
+                 || (preg_match('~(^|\.)google\.[a-z.]+$~', $host) && strpos($href, '/maps') !== false);
+            $popisek = $mapa ? 'mapa' : preg_replace('~^https?://~i', '', $url);
+            $html .= esc_html(substr($text, $pos, $start - $pos))
+                   . '<a href="' . esc_url($href) . '" target="_blank" rel="noopener" class="ska-url">' . esc_html($popisek) . '</a>';
+            $pos = $start + strlen($url);
+        }
+    }
+    $html .= esc_html(substr($text, $pos));
+    return nl2br($html);
+}
+
 // Poslední den akce (u jednodenní datum akce).
 function ska_konec($akce) {
     return !empty($akce['datum_do']) ? $akce['datum_do'] : $akce['datum_od'];
@@ -333,7 +366,7 @@ function ska_shortcode($atts = []) {
         echo '<tr class="' . esc_attr($trida) . '">';
         echo '<td class="ska-datum" data-label="Datum">' . esc_html(ska_format_datum($a['datum_od'], $a['datum_do'] ?? '')) . '</td>';
         echo '<td class="ska-cas' . ($cas === '' ? ' ska-prazdna' : '') . '" data-label="Čas">' . ($cas !== '' ? esc_html($cas) : '<span class="ska-nic">–</span>') . '</td>';
-        echo '<td class="ska-popis" data-label="Akce">' . nl2br(esc_html($a['popis'])) . '</td>';
+        echo '<td class="ska-popis" data-label="Akce">' . ska_popis_html($a['popis']) . '</td>';
         echo '<td class="ska-odkaz' . (empty($a['url']) ? ' ska-prazdna' : '') . '" data-label="Podrobnosti">';
         if (!empty($a['url'])) {
             $externi = strpos($a['url'], home_url()) !== 0;
@@ -360,6 +393,7 @@ function ska_css() {
 .ska-tabulka th{background:#f3f3f3;font-weight:600}
 .ska-tabulka .ska-datum,.ska-tabulka .ska-cas{white-space:nowrap}
 .ska-tabulka .ska-nic{color:#999}
+.ska-tabulka a.ska-url{overflow-wrap:anywhere}
 .ska-tabulka tr.ska-probiha td{background:#fffbe6}
 @media (max-width:640px){
  .ska-tabulka thead{display:none}
@@ -515,7 +549,7 @@ function ska_admin_tabulka($akce, $s_brigadami) {
         $brigada = ($a['zdroj'] ?? '') === 'brigady';
         echo '<tr><td>' . esc_html(ska_format_datum($a['datum_od'], $a['datum_do'] ?? '')) . '</td>';
         echo '<td>' . esc_html(ska_format_cas_akce($a)) . '</td>';
-        echo '<td>' . nl2br(esc_html($a['popis'])) . '</td>';
+        echo '<td>' . ska_popis_html($a['popis']) . '</td>';
         echo '<td>' . (!empty($a['url']) ? '<a href="' . esc_url($a['url']) . '" target="_blank" rel="noopener">odkaz</a>' : '') . '</td><td style="white-space:nowrap">';
         if ($brigada) {
             echo '<em>z pluginu Skautské brigády</em>';

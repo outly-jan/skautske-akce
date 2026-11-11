@@ -8,6 +8,7 @@ WordPress plugin s přehledem plánovaných akcí skautského střediska (skautc
 - **Jednodenní i vícedenní akce** — datum, nebo rozmezí dat (např. *pá 13. 11. – ne 15. 11. 2026*).
 - **Nepovinný čas od–do** — lze vyplnit oba časy, jen začátek, jen konec, nebo nic. U vícedenní akce jde o začátek prvního a konec posledního dne (*pá 18:00 – ne 12:00*).
 - **Odkaz na podrobnosti** (nepovinný) — externí odkazy se otevírají v novém okně.
+- **Rozklikávací adresy v popisu** — adresy `https://…` a `www.…` v popisu akce i brigády (např. v místě konání) jsou odkazy; odkazy na mapy (mapy.cz, mapy.com, Google Maps) se zobrazí jako „mapa“.
 - **Automatické mizení** — akce se zobrazuje do svého dne včetně, vícedenní akce do posledního dne. Probíhající akce jsou zvýrazněné.
 - **Brigády** — budoucí brigády z pluginu [Skautské brigády](https://github.com/outly-jan/skautske-brigady) se do přehledu načítají automaticky (název, místo, čas, předběžný termín) s odkazem *Přihlásit se* na stránku s brigádami.
 
