@@ -2,7 +2,7 @@
 /*
 Plugin Name: Skautské akce
 Description: Přehled plánovaných akcí střediska. Akce zadávají administrátoři ve wp-adminu, na web se vkládají shortcodem [skautske_akce]. Budoucí brigády z pluginu Skautské brigády se do přehledu načítají automaticky.
-Version: 1.2
+Version: 1.3
 Author: Honza Outlý
 Requires at least: 6.0
 Requires PHP: 8.0
@@ -14,6 +14,30 @@ define('SKA_OPT_AKCE', 'ska_akce');            // pole akcí [id => akce]
 define('SKA_OPT_DALSI_ID', 'ska_dalsi_id');    // čítač ID akcí
 define('SKA_OPT_NASTAVENI', 'ska_nastaveni');  // nastavení pluginu
 define('SKA_CAP', 'manage_options');           // kdo smí akce spravovat (administrátoři)
+define('SKA_VERZE', '1.3');                    // při změně se po nasazení vyčistí cache stránek
+
+/*
+ * Cache stránek (na webu WP Super Cache)
+ * --------------------------------------
+ * Přehled si prohlížeč po načtení stránky vždy stáhne čerstvý přes REST API,
+ * takže ani zacachovaná stránka neukáže zastaralé akce. Cache se navíc maže
+ * po každé změně akcí/nastavení a po nasazení nové verze pluginu, aby
+ * aktuální byla i samotná stránka (bez JavaScriptu, vyhledávače) a hlavně
+ * aby se do ní dostal případný nový skript.
+ */
+function ska_vycistit_cache() {
+    if (function_exists('wp_cache_clear_cache')) {
+        wp_cache_clear_cache(); // WP Super Cache
+    }
+    do_action('ska_vycistit_cache'); // pro případnou jinou cache
+}
+
+add_action('init', function () {
+    if (get_option('ska_verze') !== SKA_VERZE) {
+        update_option('ska_verze', SKA_VERZE);
+        ska_vycistit_cache();
+    }
+});
 
 /*
  * Napojení na plugin Skautské brigády
@@ -566,6 +590,7 @@ function ska_akce_ulozit() {
     }
     $vse[$id] = array_merge(['id' => $id], $a);
     ska_ulozit_vse($vse);
+    ska_vycistit_cache();
     ska_presmerovat(['zprava' => 'ulozeno']);
 }
 
@@ -581,6 +606,7 @@ function ska_akce_smazat() {
         unset($vse[intval($_POST['id'] ?? 0)]);
     }
     ska_ulozit_vse($vse);
+    ska_vycistit_cache();
     ska_presmerovat(['zprava' => 'smazano']);
 }
 
@@ -595,6 +621,7 @@ function ska_nastaveni_ulozit() {
         'brigady_predpona' => sanitize_text_field(wp_unslash($_POST['brigady_predpona'] ?? '')),
     ], false);
     delete_transient('ska_brigady_url');
+    ska_vycistit_cache();
     ska_presmerovat(['zprava' => 'nastaveni']);
 }
 

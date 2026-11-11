@@ -27,7 +27,12 @@ Ve wp-adminu menu **Plánované akce** (jen administrátoři, capability `manage
 
 Stránku s přehledem může mít v cache hosting, Cloudflare nebo cache plugin – pak by návštěvníci viděli zastaralý přehled (proběhlé akce, chybějící nové akce a brigády). Proto se přehled vykreslí do stránky a **po načtení ho prohlížeč stáhne znovu** z REST API `/wp-json/skautske-akce/v1/prehled` (odpověď s `Cache-Control: no-store`). Bez JavaScriptu zůstane přehled vykreslený ve stránce.
 
-Po první instalaci této verze je potřeba **jednou vyčistit cache** stránky, aby se do ní dostal nový skript; dál už se přehled aktualizuje sám.
+Na webu běží **WP Super Cache**. Plugin jeho cache maže sám (`wp_cache_clear_cache()`):
+
+- po uložení či smazání akce a po změně nastavení — změna je na webu hned,
+- po nasazení nové verze pluginu (konstanta `SKA_VERZE` — **při změně frontendu ji zvyšte**, jinak by zacachované stránky měly starý skript/styly).
+
+Jiná cache se dá napojit přes akci `ska_vycistit_cache`.
 
 ## Shortcode
 
