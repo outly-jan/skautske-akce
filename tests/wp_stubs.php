@@ -78,3 +78,15 @@ function add_query_arg($args, $url) { return $url . '?' . http_build_query($args
 function wp_safe_redirect($u) { $GLOBALS['presmerovano'] = $u; throw new Presmerovano($u); }
 function submit_button($t, $typ = 'primary', $n = 'submit', $wrap = true) { echo "<button type='submit'>" . esc_html($t) . '</button>'; }
 function checked($a, $b, $echo = true) { return (string) $a === (string) $b ? ' checked' : ''; }
+
+// REST API
+function rest_url($p = '') { return 'https://skautchlumec.cz/wp-json/' . $p; }
+class WP_REST_Response {
+    public $data; public $headers = [];
+    public function __construct($d) { $this->data = $d; }
+    public function header($k, $v) { $this->headers[$k] = $v; }
+}
+class WP_REST_Request_Atrapa {
+    private $p; public function __construct($p) { $this->p = $p; }
+    public function get_param($k) { return $this->p[$k] ?? null; }
+}

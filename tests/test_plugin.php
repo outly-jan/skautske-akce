@@ -112,7 +112,7 @@ $GLOBALS['transients'] = []; // na webu adresu stránky vymaže uložení strán
 $html = ska_shortcode([]);
 ok(strpos($html, 'Mikuláš &lt;b&gt;x&lt;/b&gt;') !== false, 'název je escapovaný');
 ok(strpos($html, '<span class="ska-nazev-text">Dnešní schůzka</span>') !== false, 'akce bez podrobností není klikací');
-ok(preg_match('~<button type="button" class="ska-nazev" data-ska-dialog="(ska-detail-\d+-\d+)"[^>]*>Probíhající tábor</button>~', $html, $m) === 1
+ok(preg_match('~<button type="button" class="ska-nazev" data-ska-dialog="(ska-detail-s\d+-\d+)"[^>]*>Probíhající tábor</button>~', $html, $m) === 1
    && strpos($html, '<dialog class="ska-dialog" id="' . $m[1] . '"') !== false, 'název otevírá okno s podrobnostmi');
 ok(substr_count($html, '<dialog') === 4 && substr_count($html, '<script>') === 1, 'okna jen u akcí s podrobnostmi, skript jednou');
 ok(strpos($html, 'Včerejší schůzka') === false && strpos($html, 'Skončená výprava') === false, 'proběhlé akce se nezobrazují');
@@ -120,11 +120,22 @@ ok(strpos($html, 'pá 13. 11.') === false && strpos($html, 'po 9. 11. – čt 12
 ok(strpos($html, 'target="_blank" rel="noopener">Více informací') !== false, 'externí odkaz v novém okně');
 ok(strpos($html, 'href="https://skautchlumec.cz/brigady/">Přihlásit se na brigádu') !== false, 'brigáda odkazuje na přihlášení');
 ok(substr_count($html, '<style>') === 1, 'CSS jen jednou');
+ok(strpos($html, '<div class="ska-prehled" data-ska-url="https://skautchlumec.cz/wp-json/skautske-akce/v1/prehled?limit=0&amp;brigady=ano&amp;prazdne=') !== false, 'shortcode: adresa pro čerstvý přehled');
+
+// REST: stejný obsah jako shortcode, bez stylů/skriptu, necachovat
+$odp = ska_rest_prehled(new WP_REST_Request_Atrapa(['limit' => '2', 'brigady' => 'ne', 'inst' => '1']));
+ok(substr_count($odp->data['html'], '<tr class=') === 2 && strpos($odp->data['html'], '<style') === false && strpos($odp->data['html'], '<script') === false, 'REST: tabulka bez stylů a skriptu');
+ok(strpos($odp->data['html'], 'ska-detail-r1-') !== false, 'REST: vlastní ID oken (nekolidují se zacachovanou stránkou)');
+ok(strpos($odp->headers['Cache-Control'], 'no-store') !== false, 'REST: odpověď se necachuje');
+$odp = ska_rest_prehled(new WP_REST_Request_Atrapa(['brigady' => 'x<script>', 'prazdne' => '<b>Nic</b>']));
+ok(strpos($odp->data['html'], '<tr class="ska-brigady') !== false, 'REST: neznámá hodnota brigady = ano');
+
 $html = ska_shortcode(['limit' => '2', 'brigady' => 'ne']);
 je(substr_count($html, '<tr class='), 2, 'limit a brigady="ne"');
 $GLOBALS['opts'][SKA_OPT_AKCE] = [];
 $GLOBALS['posts'] = [];
 ok(strpos(ska_shortcode([]), 'Momentálně nejsou naplánované žádné akce.') !== false, 'prázdný přehled');
+ok(strpos(ska_rest_prehled(new WP_REST_Request_Atrapa(['prazdne' => '<b>Nic</b>']))->data['html'], '<p class="ska-prazdne">Nic</p>') !== false, 'REST: vlastní text prázdného přehledu se očistí');
 
 // ---- Administrace ----
 function odeslat($akce, $post) {

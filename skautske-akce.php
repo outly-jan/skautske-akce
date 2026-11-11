@@ -2,7 +2,7 @@
 /*
 Plugin Name: Skautské akce
 Description: Přehled plánovaných akcí střediska. Akce zadávají administrátoři ve wp-adminu, na web se vkládají shortcodem [skautske_akce]. Budoucí brigády z pluginu Skautské brigády se do přehledu načítají automaticky.
-Version: 1.1
+Version: 1.2
 Author: Honza Outlý
 Requires at least: 6.0
 Requires PHP: 8.0
@@ -362,25 +362,71 @@ function ska_akce_k_zobrazeni($s_brigadami = true, $dnes = null) {
  * Frontend – shortcode [skautske_akce]
  * ========================================================================= */
 
-function ska_shortcode($atts = []) {
+function ska_shortcode_atts($atts) {
     $atts = shortcode_atts([
         'limit'   => 0,       // max. počet zobrazených akcí (0 = vše)
         'brigady' => 'ano',   // ano / ne – zahrnout brigády
         'prazdne' => 'Momentálně nejsou naplánované žádné akce.',
     ], $atts, 'skautske_akce');
+    $atts['limit']   = max(0, intval($atts['limit']));
+    $atts['brigady'] = in_array(strtolower((string) $atts['brigady']), ['ne', 'no', '0', 'false'], true) ? 'ne' : 'ano';
+    $atts['prazdne'] = sanitize_text_field((string) $atts['prazdne']);
+    return $atts;
+}
 
-    $s_brigadami = !in_array(strtolower((string) $atts['brigady']), ['ne', 'no', '0', 'false'], true);
-    $akce = ska_akce_k_zobrazeni($s_brigadami);
-    if (intval($atts['limit']) > 0) $akce = array_slice($akce, 0, intval($atts['limit']));
+/*
+ * Shortcode vykreslí přehled rovnou do stránky (funguje i bez JavaScriptu)
+ * a navíc ho po načtení stránky prohlížeč stáhne znovu přes REST API.
+ * Stránková cache (hosting, Cloudflare, cache plugin) tak nikdy neukáže
+ * zastaralý přehled – proběhlé akce zmizí a nové se objeví hned.
+ */
+function ska_shortcode($atts = []) {
+    static $instance = 0;
+    $instance++;
+    $atts = ska_shortcode_atts($atts);
+    $url  = add_query_arg([
+        'limit'   => $atts['limit'],
+        'brigady' => $atts['brigady'],
+        'prazdne' => $atts['prazdne'],
+        'inst'    => $instance,
+    ], rest_url('skautske-akce/v1/prehled'));
 
     ob_start();
     ska_css();
+    echo '<div class="ska-prehled" data-ska-url="' . esc_url($url) . '">' . ska_prehled_html($atts, 's' . $instance) . '</div>';
+    ska_js();
+    return ob_get_clean();
+}
+
+// Čerstvý přehled pro JavaScript; odpověď se nesmí cachovat.
+add_action('rest_api_init', function () {
+    register_rest_route('skautske-akce/v1', '/prehled', [
+        'methods'             => 'GET',
+        'permission_callback' => '__return_true',
+        'callback'            => 'ska_rest_prehled',
+    ]);
+});
+
+function ska_rest_prehled($req) {
+    $atts = ska_shortcode_atts([
+        'limit'   => $req->get_param('limit'),
+        'brigady' => $req->get_param('brigady'),
+        'prazdne' => $req->get_param('prazdne') ?? 'Momentálně nejsou naplánované žádné akce.',
+    ]);
+    $odp = new WP_REST_Response(['html' => ska_prehled_html($atts, 'r' . intval($req->get_param('inst')))]);
+    $odp->header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+    $odp->header('CDN-Cache-Control', 'no-store');
+    return $odp;
+}
+
+// Samotná tabulka + okna s podrobnostmi (bez stylů a skriptu).
+function ska_prehled_html($atts, $prefix) {
+    $akce = ska_akce_k_zobrazeni($atts['brigady'] === 'ano');
+    if ($atts['limit'] > 0) $akce = array_slice($akce, 0, $atts['limit']);
     if (!$akce) {
-        echo '<p class="ska-prazdne">' . esc_html($atts['prazdne']) . '</p>';
-        return ob_get_clean();
+        return '<p class="ska-prazdne">' . esc_html($atts['prazdne']) . '</p>';
     }
-    static $instance = 0;
-    $instance++;
+    ob_start();
     $dnes    = ska_dnes();
     $dialogy = '';
     echo '<div class="ska-wrap"><table class="ska-tabulka">';
@@ -394,7 +440,7 @@ function ska_shortcode($atts = []) {
         echo '<td class="ska-cas' . ($cas === '' ? ' ska-prazdna' : '') . '" data-label="Čas">' . ($cas !== '' ? esc_html($cas) : '<span class="ska-nic">–</span>') . '</td>';
         echo '<td class="ska-akce" data-label="Akce">';
         if (trim($a['popis']) !== '' || !empty($a['url'])) {
-            $id = 'ska-detail-' . $instance . '-' . $i;
+            $id = 'ska-detail-' . $prefix . '-' . $i;
             echo '<button type="button" class="ska-nazev" data-ska-dialog="' . esc_attr($id) . '" aria-haspopup="dialog">' . esc_html($a['nazev']) . '</button>';
             $dialogy .= ska_detail_html($id, $a, $datum, $cas);
         } else {
@@ -403,7 +449,6 @@ function ska_shortcode($atts = []) {
         echo '</td></tr>';
     }
     echo '</tbody></table></div>' . $dialogy;
-    ska_js();
     return ob_get_clean();
 }
 
@@ -427,6 +472,19 @@ function ska_js() {
     if ($vypsano) return;
     $vypsano = true;
     echo '<script>
+(function(){
+ function obnov(){
+  document.querySelectorAll(".ska-prehled[data-ska-url]").forEach(function(el){
+   if(!window.fetch||el.querySelector("dialog[open]"))return;
+   var u=el.getAttribute("data-ska-url");
+   fetch(u+(u.indexOf("?")<0?"?":"&")+"_="+Date.now(),{credentials:"same-origin",cache:"no-store"})
+    .then(function(r){return r.ok?r.json():null;})
+    .then(function(d){if(d&&typeof d.html==="string"&&!el.querySelector("dialog[open]")){el.innerHTML=d.html;}})
+    .catch(function(){});
+  });
+ }
+ if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",obnov);}else{obnov();}
+})();
 document.addEventListener("click",function(e){
  var b=e.target.closest&&e.target.closest("[data-ska-dialog]");
  if(b){var d=document.getElementById(b.getAttribute("data-ska-dialog"));if(d&&d.showModal){d.showModal();}return;}
