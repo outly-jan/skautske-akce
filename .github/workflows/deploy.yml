@@ -21,5 +21,15 @@ jobs:
       - name: Zavolat deploy webhook
         # Server za Cloudflare občas odpoví 522 (timeout spojení s originem),
         # typicky jen při prvním pokusu — webhook je idempotentní, tak to zkusit znovu.
+        env:
+          DEPLOY_SECRET: ${{ secrets.DEPLOY_SECRET }}
         run: |
-          curl -fsS --retry 3 --retry-delay 20 --retry-all-errors -H "X-Deploy-Token: ${{ secrets.DEPLOY_SECRET }}" -H "X-Deploy-Sha: ${{ github.sha }}" "https://skautchlumec.cz/wp-content/plugins/skautske-akce/deploy-webhook.php"
+          if [ -z "$DEPLOY_SECRET" ]; then
+            echo "::error::Chybí GitHub secret DEPLOY_SECRET – nic se nenasadilo (viz README, Instalace)."
+            exit 1
+          fi
+          odpoved=$(curl -fsS --retry 3 --retry-delay 20 --retry-all-errors -H "X-Deploy-Token: $DEPLOY_SECRET" -H "X-Deploy-Sha: ${{ github.sha }}" "https://skautchlumec.cz/wp-content/plugins/skautske-akce/deploy-webhook.php")
+          echo "$odpoved"
+          # Webhook při úspěchu vrací „OK — …“ a seznam souborů; cokoli jiného
+          # (např. stránka WordPressu, když webhook na serveru chybí) je chyba.
+          case "$odpoved" in OK*) ;; *) echo "::error::Webhook nevrátil OK – deploy neproběhl."; exit 1 ;; esac
