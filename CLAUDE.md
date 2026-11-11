@@ -12,6 +12,11 @@ přehled plánovaných akcí střediska (shortcode `[skautske_akce]`).
 - Kontrolu hlídá workflow `kompatibilita-brigady.yml` (denně a při pushi) a
   skript `tests/kontrola_brigad.php`; když selže, uprav `ska_brigady_klice()`
 
+## Cache stránek
+- Web používá WP Super Cache; plugin ji maže sám po změně akcí/nastavení a po
+  změně konstanty `SKA_VERZE` — při každé změně výstupu na frontendu (HTML,
+  CSS, JS) zvyš `SKA_VERZE` spolu s `Version:` v hlavičce pluginu
+
 ## Workflow
 - Po každé smysluplné změně: commit → push → PR → squash merge do `main`
 - Commity a PR popisky piš česky

@@ -25,7 +25,10 @@ class WPDB_Atrapa {
 }
 $GLOBALS['wpdb'] = new WPDB_Atrapa();
 
-function add_action(...$a) {} function add_filter(...$a) {} function add_menu_page(...$a) {}
+$GLOBALS['akce_hooks'] = []; $GLOBALS['cache_smazana'] = 0;
+function add_action($h, $cb = null, ...$a) { $GLOBALS['akce_hooks'][$h][] = $cb; }
+function do_action(...$a) {}
+function wp_cache_clear_cache() { $GLOBALS['cache_smazana']++; } function add_filter(...$a) {} function add_menu_page(...$a) {}
 function apply_filters($h, $v) { return $v; }
 function add_shortcode($n, $cb) { $GLOBALS['shortcodes'][$n] = $cb; }
 function shortcode_exists($n) { return isset($GLOBALS['shortcodes'][$n]); }

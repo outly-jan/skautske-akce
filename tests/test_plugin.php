@@ -145,6 +145,7 @@ function odeslat($akce, $post) {
     return $GLOBALS['presmerovano'];
 }
 $ulozit = ['fn' => 'ska_akce_ulozit', 'nonce' => 'ska_ulozit'];
+$GLOBALS['cache_smazana'] = 0;
 $smazat = ['fn' => 'ska_akce_smazat', 'nonce' => 'ska_smazat'];
 $url = odeslat($ulozit, ['id' => 0, 'datum_od' => '2026-11-28', 'datum_do' => '2026-11-29', 'cas_od' => '8:00', 'cas_do' => '16:00', 'nazev' => 'Výprava', 'url' => '']);
 ok(strpos($url, 'zprava=ulozeno') !== false, 'uložení nové akce');
@@ -164,6 +165,7 @@ ok(strpos($admin, 'Proběhlé akce (1)') !== false, 'admin: proběhlé akce');
 ok(strpos($admin, 'Brigád v databázi: 0') !== false, 'admin: diagnostika brigád');
 $_GET = [];
 
+je($GLOBALS['cache_smazana'], 3, 'WP Super Cache se maže po uložení akce (ne po chybném formuláři)');
 odeslat($smazat, ['probehle' => 1]);
 je(array_keys(ska_akce_vse()), [1], 'smazání proběhlých');
 odeslat($smazat, ['id' => 1]);
@@ -172,6 +174,12 @@ $GLOBALS['muze'] = false;
 try { odeslat($ulozit, ['id' => 0, 'datum_od' => '2026-11-28', 'nazev' => 'x']); ok(false, 'bez oprávnění'); }
 catch (Exception $e) { ok(strpos($e->getMessage(), 'wp_die') === 0 && ska_akce_vse() === [], 'bez oprávnění nelze ukládat'); }
 $GLOBALS['muze'] = true;
+
+// ---- Cache po nasazení nové verze ----
+$GLOBALS['cache_smazana'] = 0;
+$init = $GLOBALS['akce_hooks']['init'][0];
+$init(); $init();
+je([$GLOBALS['cache_smazana'], get_option('ska_verze')], [1, SKA_VERZE], 'cache se po nové verzi smaže jen jednou');
 
 echo $chyb ? "\n$chyb z $testu testů SELHALO\n" : "OK – všech $testu testů prošlo\n";
 exit($chyb ? 1 : 0);
