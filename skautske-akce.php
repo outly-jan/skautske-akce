@@ -2,7 +2,7 @@
 /*
 Plugin Name: Skautské akce
 Description: Přehled plánovaných akcí střediska. Akce zadávají administrátoři ve wp-adminu, na web se vkládají shortcodem [skautske_akce]. Budoucí brigády z pluginu Skautské brigády se do přehledu načítají automaticky.
-Version: 1.0
+Version: 1.1
 Author: Honza Outlý
 Requires at least: 6.0
 Requires PHP: 8.0
@@ -35,6 +35,8 @@ function ska_brigady_klice() {
         'cas'             => 'cas_brigady',     // volný text, např. „9:00“ nebo „9:00–13:00“
         'delka'           => 'delka_brigady',   // počet hodin
         'misto'           => 'misto_konani',
+        'vhodne'          => 'vhodne_pro',
+        'poznamka'        => 'poznamka_brigady',
         'datum_predbezne' => 'datum_predbezne', // '1' = termín předběžný
         'cas_predbezne'   => 'cas_predbezne',   // '1' = čas předběžný
         'shortcody'       => ['sb_prehled_brigad', 'prehled_brigad', 'moje_brigady'], // stránky s brigádami (pořadí = priorita)
@@ -147,8 +149,19 @@ function ska_je_budouci($akce, $dnes = null) {
 }
 
 function ska_razeni($a, $b) {
-    return [$a['datum_od'], ska_platny_cas($a['cas_od'] ?? '') ? ska_normalizovat_cas($a['cas_od']) : '99:99', $a['popis']]
-       <=> [$b['datum_od'], ska_platny_cas($b['cas_od'] ?? '') ? ska_normalizovat_cas($b['cas_od']) : '99:99', $b['popis']];
+    return [$a['datum_od'], ska_platny_cas($a['cas_od'] ?? '') ? ska_normalizovat_cas($a['cas_od']) : '99:99', $a['nazev'] ?? '']
+       <=> [$b['datum_od'], ska_platny_cas($b['cas_od'] ?? '') ? ska_normalizovat_cas($b['cas_od']) : '99:99', $b['nazev'] ?? ''];
+}
+
+// Doplní chybějící pole. Akce uložené před zavedením názvu (verze 1.0)
+// měly jen popis – ten se pak použije jako název.
+function ska_normalizovat_akci($a) {
+    $a = array_merge(['datum_do' => '', 'cas_od' => '', 'cas_do' => '', 'cas_text' => '', 'nazev' => '', 'popis' => '', 'url' => ''], $a);
+    if (trim($a['nazev']) === '') {
+        $a['nazev'] = $a['popis'];
+        $a['popis'] = '';
+    }
+    return $a;
 }
 
 function ska_nastaveni() {
@@ -180,6 +193,7 @@ function ska_validovat($vstup) {
         'datum_do' => sanitize_text_field($vstup['datum_do'] ?? ''),
         'cas_od'   => sanitize_text_field($vstup['cas_od'] ?? ''),
         'cas_do'   => sanitize_text_field($vstup['cas_do'] ?? ''),
+        'nazev'    => sanitize_text_field($vstup['nazev'] ?? ''),
         'popis'    => sanitize_textarea_field($vstup['popis'] ?? ''),
         'url'      => trim((string) ($vstup['url'] ?? '')),
     ];
@@ -197,7 +211,7 @@ function ska_validovat($vstup) {
     if ($a['datum_do'] === '' && ska_platny_cas($a['cas_od']) && ska_platny_cas($a['cas_do']) && $a['cas_do'] < $a['cas_od']) {
         $chyby[] = 'Čas konce nemůže být dřív než čas začátku.';
     }
-    if ($a['popis'] === '') $chyby[] = 'Vyplňte popis akce.';
+    if ($a['nazev'] === '') $chyby[] = 'Vyplňte název akce.';
 
     if ($a['url'] !== '') {
         if (!preg_match('#^https?://#i', $a['url'])) $a['url'] = 'https://' . $a['url'];
@@ -290,14 +304,20 @@ function ska_brigady_jako_akce($dnes = null) {
             if (!ska_platne_datum($datum) || $datum < $dnes) continue;
 
             $cas   = ska_rozparsovat_cas_brigady(get_post_meta($p->ID, $k['cas'], true), get_post_meta($p->ID, $k['delka'], true));
-            $misto = trim((string) get_post_meta($p->ID, $k['misto'], true));
+            $meta  = function ($pole) use ($p, $k) { return trim((string) get_post_meta($p->ID, $k[$pole], true)); };
             $nazev = trim((string) $p->post_title);
-            $popis = trim($n['brigady_predpona'] . ($nazev !== '' ? ': ' . $nazev : ''), ': ');
-            if ($misto !== '') $popis .= ' (' . $misto . ')';
-            $pozn = [];
-            if (get_post_meta($p->ID, $k['datum_predbezne'], true) === '1') $pozn[] = 'termín je předběžný';
-            if (get_post_meta($p->ID, $k['cas_predbezne'], true) === '1' && ($cas['cas_od'] !== '' || $cas['cas_text'] !== '')) $pozn[] = 'čas je předběžný';
-            if ($pozn) $popis .= ' – ' . implode(', ', $pozn);
+            $nazev = trim($n['brigady_predpona'] . ($nazev !== '' ? ': ' . $nazev : ''), ': ');
+
+            // Podrobnosti jako v pluginu brigád (veřejný přehled brigád)
+            $radky = [];
+            if ($meta('misto') !== '')    $radky[] = 'Místo: ' . $meta('misto');
+            $delka = $meta('delka');
+            if ($delka !== '')            $radky[] = 'Trvání: ' . $delka . (is_numeric(str_replace(',', '.', $delka)) ? ' h' : '');
+            if ($meta('vhodne') !== '')   $radky[] = 'Vhodné pro: ' . $meta('vhodne');
+            if ($meta('poznamka') !== '') $radky[] = 'Poznámka: ' . $meta('poznamka');
+            if ($meta('datum_predbezne') === '1') $radky[] = 'Termín je předběžný.';
+            if ($meta('cas_predbezne') === '1' && ($cas['cas_od'] !== '' || $cas['cas_text'] !== '')) $radky[] = 'Čas je předběžný.';
+            $popis = implode("\n", $radky);
 
             $akce[] = [
                 'id'       => 'brigada-' . $p->ID,
@@ -306,6 +326,7 @@ function ska_brigady_jako_akce($dnes = null) {
                 'cas_od'   => $cas['cas_od'],
                 'cas_do'   => $cas['cas_do'],
                 'cas_text' => $cas['cas_text'],
+                'nazev'    => $nazev,
                 'popis'    => $popis,
                 'url'      => $url,
                 'zdroj'    => 'brigady',
@@ -326,6 +347,7 @@ function ska_akce_k_zobrazeni($s_brigadami = true, $dnes = null) {
     $vysl = [];
     foreach (ska_akce_vse() as $a) {
         if (!is_array($a) || !ska_platne_datum($a['datum_od'] ?? '')) continue;
+        $a = ska_normalizovat_akci($a);
         $a['zdroj'] = 'vlastni';
         if (ska_je_budouci($a, $dnes)) $vysl[] = $a;
     }
@@ -357,28 +379,60 @@ function ska_shortcode($atts = []) {
         echo '<p class="ska-prazdne">' . esc_html($atts['prazdne']) . '</p>';
         return ob_get_clean();
     }
-    $dnes = ska_dnes();
+    static $instance = 0;
+    $instance++;
+    $dnes    = ska_dnes();
+    $dialogy = '';
     echo '<div class="ska-wrap"><table class="ska-tabulka">';
-    echo '<thead><tr><th>Datum</th><th>Čas</th><th>Akce</th><th>Podrobnosti</th></tr></thead><tbody>';
-    foreach ($akce as $a) {
+    echo '<thead><tr><th>Datum</th><th>Čas</th><th>Akce</th></tr></thead><tbody>';
+    foreach ($akce as $i => $a) {
         $trida = 'ska-' . $a['zdroj'] . ($a['datum_od'] <= $dnes ? ' ska-probiha' : '');
+        $datum = ska_format_datum($a['datum_od'], $a['datum_do'] ?? '');
         $cas   = ska_format_cas_akce($a);
         echo '<tr class="' . esc_attr($trida) . '">';
-        echo '<td class="ska-datum" data-label="Datum">' . esc_html(ska_format_datum($a['datum_od'], $a['datum_do'] ?? '')) . '</td>';
+        echo '<td class="ska-datum" data-label="Datum">' . esc_html($datum) . '</td>';
         echo '<td class="ska-cas' . ($cas === '' ? ' ska-prazdna' : '') . '" data-label="Čas">' . ($cas !== '' ? esc_html($cas) : '<span class="ska-nic">–</span>') . '</td>';
-        echo '<td class="ska-popis" data-label="Akce">' . ska_popis_html($a['popis']) . '</td>';
-        echo '<td class="ska-odkaz' . (empty($a['url']) ? ' ska-prazdna' : '') . '" data-label="Podrobnosti">';
-        if (!empty($a['url'])) {
-            $externi = strpos($a['url'], home_url()) !== 0;
-            echo '<a href="' . esc_url($a['url']) . '"' . ($externi ? ' target="_blank" rel="noopener"' : '') . '>'
-               . ($a['zdroj'] === 'brigady' ? 'Přihlásit se' : 'Více informací') . '</a>';
+        echo '<td class="ska-akce" data-label="Akce">';
+        if (trim($a['popis']) !== '' || !empty($a['url'])) {
+            $id = 'ska-detail-' . $instance . '-' . $i;
+            echo '<button type="button" class="ska-nazev" data-ska-dialog="' . esc_attr($id) . '" aria-haspopup="dialog">' . esc_html($a['nazev']) . '</button>';
+            $dialogy .= ska_detail_html($id, $a, $datum, $cas);
         } else {
-            echo '<span class="ska-nic">–</span>';
+            echo '<span class="ska-nazev-text">' . esc_html($a['nazev']) . '</span>';
         }
         echo '</td></tr>';
     }
-    echo '</tbody></table></div>';
+    echo '</tbody></table></div>' . $dialogy;
+    ska_js();
     return ob_get_clean();
+}
+
+// Okno s podrobnostmi akce (nativní <dialog>, zavírá se křížkem, Esc nebo kliknutím vedle).
+function ska_detail_html($id, $a, $datum, $cas) {
+    $h  = '<dialog class="ska-dialog" id="' . esc_attr($id) . '" aria-labelledby="' . esc_attr($id) . '-n">';
+    $h .= '<form method="dialog" class="ska-zavrit-form"><button class="ska-zavrit" aria-label="Zavřít">&times;</button></form>';
+    $h .= '<h3 class="ska-dialog-nazev" id="' . esc_attr($id) . '-n">' . esc_html($a['nazev']) . '</h3>';
+    $h .= '<p class="ska-dialog-kdy"><strong>' . esc_html($datum) . '</strong>' . ($cas !== '' ? '<br>' . esc_html($cas) : '') . '</p>';
+    if (trim($a['popis']) !== '') $h .= '<div class="ska-dialog-popis">' . ska_popis_html($a['popis']) . '</div>';
+    if (!empty($a['url'])) {
+        $externi = strpos($a['url'], home_url()) !== 0;
+        $h .= '<p class="ska-dialog-odkaz"><a class="ska-tlacitko" href="' . esc_url($a['url']) . '"' . ($externi ? ' target="_blank" rel="noopener"' : '') . '>'
+            . ($a['zdroj'] === 'brigady' ? 'Přihlásit se na brigádu' : 'Více informací') . '</a></p>';
+    }
+    return $h . '</dialog>';
+}
+
+function ska_js() {
+    static $vypsano = false;
+    if ($vypsano) return;
+    $vypsano = true;
+    echo '<script>
+document.addEventListener("click",function(e){
+ var b=e.target.closest&&e.target.closest("[data-ska-dialog]");
+ if(b){var d=document.getElementById(b.getAttribute("data-ska-dialog"));if(d&&d.showModal){d.showModal();}return;}
+ if(e.target.classList&&e.target.classList.contains("ska-dialog")){e.target.close();}
+});
+</script>';
 }
 add_shortcode('skautske_akce', 'ska_shortcode');
 
@@ -393,7 +447,6 @@ function ska_css() {
 .ska-tabulka th{background:#f3f3f3;font-weight:600}
 .ska-tabulka .ska-datum,.ska-tabulka .ska-cas{white-space:nowrap}
 .ska-tabulka .ska-nic{color:#999}
-.ska-tabulka a.ska-url{overflow-wrap:anywhere}
 .ska-tabulka tr.ska-probiha td{background:#fffbe6}
 @media (max-width:640px){
  .ska-tabulka thead{display:none}
@@ -402,9 +455,22 @@ function ska_css() {
  .ska-tabulka tr{border:1px solid #ddd;border-radius:6px;margin-bottom:10px;padding:4px 0}
  .ska-tabulka td{border:0;padding:3px 10px;white-space:normal}
  .ska-tabulka td::before{content:attr(data-label) ": ";font-weight:600}
- .ska-tabulka td.ska-popis::before{content:""}
- .ska-tabulka td.ska-popis{font-weight:600}
+ .ska-tabulka td.ska-akce::before{content:""}
 }
+.ska-tabulka .ska-nazev{background:none;border:0;padding:0;margin:0;font:inherit;font-weight:600;color:inherit;text-align:left;cursor:pointer;text-decoration:underline dotted;text-underline-offset:3px}
+.ska-tabulka .ska-nazev:hover,.ska-tabulka .ska-nazev:focus-visible{text-decoration-style:solid}
+.ska-tabulka .ska-nazev::after{content:" ›";text-decoration:none;display:inline-block;margin-left:2px}
+.ska-tabulka .ska-nazev-text{font-weight:600}
+.ska-dialog{max-width:min(520px,calc(100vw - 32px));width:100%;border:0;border-radius:8px;padding:20px 22px;box-shadow:0 10px 40px rgba(0,0,0,.3);box-sizing:border-box}
+.ska-dialog::backdrop{background:rgba(0,0,0,.45)}
+.ska-dialog .ska-zavrit-form{float:right;margin:-10px -12px 0 8px}
+.ska-dialog .ska-zavrit{background:none;border:0;font-size:28px;line-height:1;cursor:pointer;padding:4px 8px;color:inherit}
+.ska-dialog .ska-dialog-nazev{margin:0 0 8px}
+.ska-dialog .ska-dialog-kdy{margin:0 0 12px}
+.ska-dialog .ska-dialog-popis{margin:0 0 12px}
+.ska-dialog a.ska-url{overflow-wrap:anywhere}
+.ska-dialog .ska-dialog-odkaz{margin:16px 0 0}
+.ska-dialog .ska-tlacitko{display:inline-block;padding:8px 16px;border-radius:4px;border:1px solid currentColor;text-decoration:none}
 </style>';
 }
 
@@ -492,7 +558,9 @@ function ska_admin_stranka() {
         $form = get_transient('ska_form_' . get_current_user_id());
         delete_transient('ska_form_' . get_current_user_id());
         $a = is_array($form) ? $form['akce'] : ($upravit ? $vse[$upravit] : []);
-        $a = array_merge(['datum_od' => '', 'datum_do' => '', 'cas_od' => '', 'cas_do' => '', 'popis' => '', 'url' => ''], (array) $a);
+        $a = array_merge(['datum_od' => '', 'datum_do' => '', 'cas_od' => '', 'cas_do' => '', 'nazev' => '', 'popis' => '', 'url' => ''], (array) $a);
+        // Stará akce bez názvu: nabídnout popis jako název (po chybě ve formuláři ponechat, co uživatel zadal).
+        if (!is_array($form)) $a = ska_normalizovat_akci($a);
         if (is_array($form) && $form['chyby']) {
             echo '<div class="notice notice-error"><p>' . implode('<br>', array_map('esc_html', $form['chyby'])) . '</p></div>';
         }
@@ -507,7 +575,8 @@ function ska_admin_stranka() {
         echo '<tr><th><label for="ska-cas-od">Čas (nepovinné)</label></th><td><input type="time" id="ska-cas-od" name="cas_od" value="' . esc_attr($a['cas_od']) . '">'
            . ' – <input type="time" id="ska-cas-do" name="cas_do" value="' . esc_attr($a['cas_do']) . '">'
            . '<p class="description">Od – do; vyplnit lze i jen jeden z časů. U vícedenní akce je to začátek prvního dne a konec posledního dne.</p></td></tr>';
-        echo '<tr><th><label for="ska-popis">Popis</label></th><td><textarea id="ska-popis" name="popis" rows="3" class="large-text" required>' . esc_textarea($a['popis']) . '</textarea></td></tr>';
+        echo '<tr><th><label for="ska-nazev">Název</label></th><td><input type="text" id="ska-nazev" name="nazev" value="' . esc_attr($a['nazev']) . '" class="regular-text" maxlength="120" required placeholder="např. Skautský ples"><p class="description">Stručné označení – zobrazí se v tabulce. Kliknutím na něj se otevřou podrobnosti.</p></td></tr>';
+        echo '<tr><th><label for="ska-popis">Popis (nepovinné)</label></th><td><textarea id="ska-popis" name="popis" rows="4" class="large-text">' . esc_textarea($a['popis']) . '</textarea><p class="description">Podrobnosti v okně po kliknutí na název (místo, co s sebou…). Adresy https://… a www.… budou klikací.</p></td></tr>';
         echo '<tr><th><label for="ska-url">Odkaz na podrobnosti (nepovinné)</label></th><td><input type="url" id="ska-url" name="url" value="' . esc_attr($a['url']) . '" class="regular-text" placeholder="https://"></td></tr>';
         echo '</table>';
         submit_button($upravit ? 'Uložit změny' : 'Přidat akci', 'primary', 'submit', false);
@@ -544,11 +613,13 @@ function ska_admin_tabulka($akce, $s_brigadami) {
         echo '<p><em>Žádné akce.</em></p>';
         return;
     }
-    echo '<table class="widefat striped"><thead><tr><th>Datum</th><th>Čas</th><th>Popis</th><th>Odkaz</th><th></th></tr></thead><tbody>';
+    echo '<table class="widefat striped"><thead><tr><th>Datum</th><th>Čas</th><th>Název</th><th>Popis</th><th>Odkaz</th><th></th></tr></thead><tbody>';
     foreach ($akce as $a) {
+        $a = ska_normalizovat_akci($a);
         $brigada = ($a['zdroj'] ?? '') === 'brigady';
         echo '<tr><td>' . esc_html(ska_format_datum($a['datum_od'], $a['datum_do'] ?? '')) . '</td>';
         echo '<td>' . esc_html(ska_format_cas_akce($a)) . '</td>';
+        echo '<td><strong>' . esc_html($a['nazev']) . '</strong></td>';
         echo '<td>' . ska_popis_html($a['popis']) . '</td>';
         echo '<td>' . (!empty($a['url']) ? '<a href="' . esc_url($a['url']) . '" target="_blank" rel="noopener">odkaz</a>' : '') . '</td><td style="white-space:nowrap">';
         if ($brigada) {
