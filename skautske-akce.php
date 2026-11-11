@@ -2,7 +2,7 @@
 /*
 Plugin Name: Skautské akce
 Description: Přehled plánovaných akcí střediska. Akce zadávají administrátoři ve wp-adminu, na web se vkládají shortcodem [skautske_akce]. Budoucí brigády z pluginu Skautské brigády se do přehledu načítají automaticky.
-Version: 1.4
+Version: 1.5
 Author: Honza Outlý
 Requires at least: 6.0
 Requires PHP: 8.0
@@ -14,7 +14,7 @@ define('SKA_OPT_AKCE', 'ska_akce');            // pole akcí [id => akce]
 define('SKA_OPT_DALSI_ID', 'ska_dalsi_id');    // čítač ID akcí
 define('SKA_OPT_NASTAVENI', 'ska_nastaveni');  // nastavení pluginu
 define('SKA_CAP', 'manage_options');           // kdo smí akce spravovat (administrátoři)
-define('SKA_VERZE', '1.4');                    // při změně se po nasazení vyčistí cache stránek
+define('SKA_VERZE', '1.5');                    // při změně se po nasazení vyčistí cache stránek
 
 /*
  * Cache stránek (na webu WP Super Cache)
@@ -540,10 +540,10 @@ function ska_css() {
  .ska-tabulka td.ska-akce::before{content:""}
 }
 .ska-tabulka td.ska-akce{width:100%;overflow-wrap:anywhere}
-.ska-tabulka .ska-nazev,.ska-tabulka .ska-nazev:hover,.ska-tabulka .ska-nazev:focus{display:inline!important;white-space:normal!important;width:auto!important;height:auto!important;min-height:0!important;max-width:100%;background:none!important;border:0!important;border-radius:0!important;box-shadow:none!important;padding:0!important;margin:0!important;font:inherit!important;font-weight:600!important;line-height:inherit!important;letter-spacing:inherit!important;text-transform:none!important;color:inherit!important;text-align:left!important;cursor:pointer;text-decoration:underline dotted!important;text-underline-offset:3px;overflow-wrap:anywhere}
+.ska-tabulka .ska-nazev,.ska-tabulka .ska-nazev:hover,.ska-tabulka .ska-nazev:focus{display:inline!important;white-space:normal!important;width:auto!important;height:auto!important;min-height:0!important;max-width:100%;background:none!important;border:0!important;border-radius:0!important;box-shadow:none!important;padding:0!important;margin:0!important;font:inherit!important;font-weight:inherit!important;line-height:inherit!important;letter-spacing:inherit!important;text-transform:none!important;color:inherit!important;text-align:left!important;cursor:pointer;text-decoration:underline dotted!important;text-underline-offset:3px;overflow-wrap:anywhere}
 .ska-tabulka .ska-nazev:hover,.ska-tabulka .ska-nazev:focus-visible{text-decoration-style:solid!important}
 .ska-tabulka .ska-nazev::after{content:" ›";text-decoration:none;display:inline-block;margin-left:2px}
-.ska-tabulka .ska-nazev-text{font-weight:600}
+.ska-tabulka .ska-nazev-text{font-weight:inherit}
 .ska-dialog{max-width:min(520px,calc(100vw - 32px));width:100%;border:0;border-radius:8px;padding:20px 22px;box-shadow:0 10px 40px rgba(0,0,0,.3);box-sizing:border-box}
 .ska-dialog::backdrop{background:rgba(0,0,0,.45)}
 .ska-dialog .ska-zavrit-form{float:right;margin:-10px -12px 0 8px}
