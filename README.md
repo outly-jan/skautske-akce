@@ -4,13 +4,15 @@ WordPress plugin s přehledem plánovaných akcí skautského střediska (skautc
 
 ## Co plugin umí
 
-- **Tabulka akcí na webu** — shortcode `[skautske_akce]`: datum, čas, popis a odkaz na podrobnosti. Na mobilu se řádky skládají pod sebe.
+- **Tabulka akcí na webu** — shortcode `[skautske_akce]`: datum, čas a název akce. Na mobilu se řádky skládají pod sebe.
+- **Podrobnosti v okně** — kliknutím na název se otevře okno s datem, časem, popisem a odkazem (zavře se křížkem, klávesou Esc nebo kliknutím vedle). Akce bez popisu a odkazu není klikací.
+- **Název a popis** — název je stručné označení do tabulky (povinný), popis jsou podrobnosti do okna (nepovinný). Akce uložené před zavedením názvu používají jako název svůj popis, dokud je neupravíte.
 - **Jednodenní i vícedenní akce** — datum, nebo rozmezí dat (např. *pá 13. 11. – ne 15. 11. 2026*).
 - **Nepovinný čas od–do** — lze vyplnit oba časy, jen začátek, jen konec, nebo nic. U vícedenní akce jde o začátek prvního a konec posledního dne (*pá 18:00 – ne 12:00*).
-- **Odkaz na podrobnosti** (nepovinný) — externí odkazy se otevírají v novém okně.
+- **Odkaz** (nepovinný) — tlačítko „Více informací“ v okně s podrobnostmi; externí odkazy se otevírají v novém okně.
 - **Rozklikávací adresy v popisu** — adresy `https://…` a `www.…` v popisu akce i brigády (např. v místě konání) jsou odkazy; odkazy na mapy (mapy.cz, mapy.com, Google Maps) se zobrazí jako „mapa“.
 - **Automatické mizení** — akce se zobrazuje do svého dne včetně, vícedenní akce do posledního dne. Probíhající akce jsou zvýrazněné.
-- **Brigády** — budoucí brigády z pluginu [Skautské brigády](https://github.com/outly-jan/skautske-brigady) se do přehledu načítají automaticky (název, místo, čas, předběžný termín) s odkazem *Přihlásit se* na stránku s brigádami.
+- **Brigády** — budoucí brigády z pluginu [Skautské brigády](https://github.com/outly-jan/skautske-brigady) se do přehledu načítají automaticky. V okně s podrobnostmi je místo, trvání, pro koho je brigáda vhodná, poznámka, případně předběžný termín/čas a tlačítko *Přihlásit se na brigádu* (stránka s brigádami).
 
 ## Správa akcí
 
@@ -39,7 +41,7 @@ Aby přehled fungoval i během a po aktualizaci pluginu brigád:
 - chyba při čtení brigád nikdy neshodí přehled — akce se zobrazí bez brigád a chyba se zapíše do logu PHP,
 - workflow **Kompatibilita se Skautskými brigádami** každý den (a při každém pushi) stáhne aktuální kód pluginu brigád a ověří, že stále ukládá brigády pod očekávanými klíči. Když ne, běh selže a GitHub pošle e-mail; pak stačí upravit `ska_brigady_klice()`.
 
-Používané údaje brigád: `datum_brigady` (Y-m-d), `cas_brigady` (volný text — z něj se vyčte začátek, případně i konec), `delka_brigady` (dopočet konce), `misto_konani`, `datum_predbezne`, `cas_predbezne`; odkaz na stránku se shortcodem `[sb_prehled_brigad]`, `[prehled_brigad]` nebo `[moje_brigady]`.
+Používané údaje brigád: `datum_brigady` (Y-m-d), `cas_brigady` (volný text — z něj se vyčte začátek, případně i konec), `delka_brigady` (dopočet konce), `misto_konani`, `vhodne_pro`, `poznamka_brigady`, `datum_predbezne`, `cas_predbezne`; odkaz na stránku se shortcodem `[sb_prehled_brigad]`, `[prehled_brigad]` nebo `[moje_brigady]`.
 
 ## Data
 

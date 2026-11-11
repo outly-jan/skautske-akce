@@ -21,7 +21,7 @@ $chyby = [];
 if (!preg_match("/'post_type'\s*=>\s*'" . preg_quote($k['post_type'], '/') . "'/", $kod)) {
     $chyby[] = "typ příspěvku '{$k['post_type']}' se v pluginu brigád nepoužívá";
 }
-foreach (['datum', 'cas', 'delka', 'misto', 'datum_predbezne', 'cas_predbezne'] as $pole) {
+foreach (['datum', 'cas', 'delka', 'misto', 'vhodne', 'poznamka', 'datum_predbezne', 'cas_predbezne'] as $pole) {
     $klic = $k[$pole];
     if (!preg_match("/update_post_meta\([^,]+,\s*'" . preg_quote($klic, '/') . "'/", $kod)) {
         $chyby[] = "plugin brigád už neukládá post meta '$klic' ($pole)";
